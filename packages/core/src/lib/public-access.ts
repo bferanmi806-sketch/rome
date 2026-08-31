@@ -5,6 +5,7 @@ import { createLogger } from "../logger.js";
 import { generateCaddyfile } from "./caddyfile-generator.js";
 import { generateGatewayPage, getInstanceName } from "./gateway-page.js";
 import type { PublicAccessConfig } from "./public-access-config.js";
+import type { PublicAccessState } from "./public-access-state.js";
 
 export { generateCaddyfile } from "./caddyfile-generator.js";
 
@@ -20,6 +21,15 @@ function execFileAsync(command: string, args: string[], timeout: number): Promis
       resolve();
     });
   });
+}
+
+/** Loads the stored policy, updates the auth snapshot, and reconciles Caddy from that config. */
+export async function reconcilePublicAccessAtStartup(
+  db: DrizzleDb,
+  publicAccessState: PublicAccessState,
+): Promise<void> {
+  const config = await publicAccessState.load(db);
+  await writeCaddyfileAndReload(db, config);
 }
 
 export async function writeCaddyfileAndReload(
