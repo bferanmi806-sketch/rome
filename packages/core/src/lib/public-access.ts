@@ -1,15 +1,16 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import type { DrizzleDb } from "../db/index.js";
 import { createLogger } from "../logger.js";
 import { generateCaddyfile } from "./caddyfile-generator.js";
 import { generateGatewayPage, getInstanceName } from "./gateway-page.js";
 import type { PublicAccessConfig } from "./public-access-config.js";
-import type { PublicAccessState } from "./public-access-state.js";
 
 export { generateCaddyfile } from "./caddyfile-generator.js";
 
 const log = createLogger("public-access");
+const DEFAULT_CADDY_CONFIG_PATH = "/etc/caddy/Caddyfile";
 
 function execFileAsync(command: string, args: string[], timeout: number): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -23,12 +24,15 @@ function execFileAsync(command: string, args: string[], timeout: number): Promis
   });
 }
 
-/** Loads the stored policy, updates the auth snapshot, and reconciles Caddy from that config. */
+/** Reconciles the already-loaded policy with Caddy when the proxy path is present. */
 export async function reconcilePublicAccessAtStartup(
   db: DrizzleDb,
-  publicAccessState: PublicAccessState,
+  config: PublicAccessConfig,
 ): Promise<void> {
-  const config = await publicAccessState.load(db);
+  // The container entrypoint creates the default Caddyfile before the daemon
+  // starts. An explicit path is the signal for alternate deployments and tests.
+  if (!process.env.CADDY_CONFIG_PATH && !existsSync(DEFAULT_CADDY_CONFIG_PATH)) return;
+
   await writeCaddyfileAndReload(db, config);
 }
 
@@ -36,7 +40,7 @@ export async function writeCaddyfileAndReload(
   db: DrizzleDb | null,
   config: PublicAccessConfig,
 ): Promise<void> {
-  const caddyPath = process.env.CADDY_CONFIG_PATH || "/etc/caddy/Caddyfile";
+  const caddyPath = process.env.CADDY_CONFIG_PATH || DEFAULT_CADDY_CONFIG_PATH;
   const content = generateCaddyfile(config);
 
   await writeFile(caddyPath, content, "utf-8");

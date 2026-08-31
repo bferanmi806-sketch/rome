@@ -144,7 +144,8 @@ describe("Public-access API", () => {
       });
       writeFileSync(caddyPath, "stale Caddyfile");
 
-      await reconcilePublicAccessAtStartup(testDb.db, publicAccessState);
+      const config = await publicAccessState.load(testDb.db);
+      await reconcilePublicAccessAtStartup(testDb.db, config);
 
       const caddyfile = readFileSync(caddyPath, "utf-8");
       expect(caddyfile).not.toContain("stale Caddyfile");
@@ -153,6 +154,21 @@ describe("Public-access API", () => {
       expect(reloadArgs()).toEqual(["reload", "--config", caddyPath]);
       expect([...publicAccessState.allowedApps()]).toEqual(["inbox"]);
       expect([...publicAccessState.cloudEmailsForApp("inbox")]).toEqual(["ada@example.com"]);
+    });
+
+    it("loads the policy without reconciling when Caddy is not configured", async () => {
+      delete process.env.CADDY_CONFIG_PATH;
+      await deps.settingsRepo!.set("publicAccess", {
+        enableAccessControl: true,
+        allowedApps: ["inbox"],
+      });
+
+      const config = await publicAccessState.load(testDb.db);
+      await reconcilePublicAccessAtStartup(testDb.db, config);
+
+      expect([...publicAccessState.allowedApps()]).toEqual(["inbox"]);
+      expect(reloadArgs()).toBeNull();
+      expect(existsSync(caddyPath)).toBe(false);
     });
   });
 
