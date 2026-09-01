@@ -69,6 +69,7 @@ describe("Public-access API", () => {
     );
     chmodSync(fakeCaddy, 0o755);
 
+    // The explicit path is also the startup ownership signal.
     process.env.CADDY_CONFIG_PATH = caddyPath;
     process.env.CADDY_SPY_FILE = spyFile;
     process.env.PATH = `${binDir}:${process.env.PATH}`;
@@ -156,7 +157,8 @@ describe("Public-access API", () => {
       expect([...publicAccessState.cloudEmailsForApp("inbox")]).toEqual(["ada@example.com"]);
     });
 
-    it("loads the policy without reconciling when Caddy is not configured", async () => {
+    it("loads the policy without reconciling when CADDY_CONFIG_PATH is unset", async () => {
+      writeFileSync(caddyPath, "host-owned Caddyfile");
       delete process.env.CADDY_CONFIG_PATH;
       await deps.settingsRepo!.set("publicAccess", {
         enableAccessControl: true,
@@ -168,7 +170,7 @@ describe("Public-access API", () => {
 
       expect([...publicAccessState.allowedApps()]).toEqual(["inbox"]);
       expect(reloadArgs()).toBeNull();
-      expect(existsSync(caddyPath)).toBe(false);
+      expect(readFileSync(caddyPath, "utf-8")).toBe("host-owned Caddyfile");
     });
   });
 

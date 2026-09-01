@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import type { DrizzleDb } from "../db/index.js";
 import { createLogger } from "../logger.js";
@@ -24,14 +23,13 @@ function execFileAsync(command: string, args: string[], timeout: number): Promis
   });
 }
 
-/** Reconciles the already-loaded policy with Caddy when the proxy path is present. */
+/** Reconciles the already-loaded policy when Rome explicitly owns a Caddy proxy. */
 export async function reconcilePublicAccessAtStartup(
   db: DrizzleDb,
   config: PublicAccessConfig,
 ): Promise<void> {
-  // The container entrypoint creates the default Caddyfile before the daemon
-  // starts. An explicit path is the signal for alternate deployments and tests.
-  if (!process.env.CADDY_CONFIG_PATH && !existsSync(DEFAULT_CADDY_CONFIG_PATH)) return;
+  // CADDY_CONFIG_PATH explicitly declares that Rome owns the proxy config.
+  if (!process.env.CADDY_CONFIG_PATH) return;
 
   await writeCaddyfileAndReload(db, config);
 }
